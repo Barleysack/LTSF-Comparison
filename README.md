@@ -3,7 +3,7 @@ Code based on https://github.com/cure-lab/LTSF-Linear.
 ## Modifications
 1. Resolved RuntimeEror raised by passing argument --gpu n with n > 1.
 2. Parsed xFormer shell scripts into multiple scripts and concatenated xLinear model evaluation.
-3. Concatenated input to xFormers and unpacked the inputs to measure flops.
+3. Concatenated input to xFormers and unpacked the inputs to measure flops. 
 
 ## Notice
 0. Unzip the TSF benchmark dataset into *dataset* directory.
