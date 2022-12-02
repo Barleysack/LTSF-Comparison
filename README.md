@@ -9,6 +9,7 @@ Code based on https://github.com/cure-lab/LTSF-Linear.
 0. Unzip the TSF benchmark dataset into *dataset* directory.
 
 1. Bash commands
+
 Linear
 ```
 bash scripts/EXP-LongForecasting/Linear/DLinear_Long.sh
