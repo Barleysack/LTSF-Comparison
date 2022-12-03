@@ -43,7 +43,6 @@ class Model(nn.Module):
         super(Model, self).__init__()
         self.seq_len = configs.seq_len
         self.pred_len = configs.pred_len
-        self.configs = configs
 
         # Decompsition Kernel Size
         kernel_size = 25

@@ -16,9 +16,6 @@ class Model(nn.Module):
         super(Model, self).__init__()
         self.pred_len = configs.pred_len
         self.output_attention = configs.output_attention
-        self.seq_len = configs.seq_len
-        self.enc_in = configs.enc_in
-        self.dec_in = configs.dec_in
 
         # Embedding
         if configs.embed_type == 0:
@@ -89,15 +86,8 @@ class Model(nn.Module):
             projection=nn.Linear(configs.d_model, configs.c_out, bias=True)
         )
 
-    """
     def forward(self, x_enc, x_mark_enc, x_dec, x_mark_dec,
                 enc_self_mask=None, dec_self_mask=None, dec_enc_mask=None):
-    """
-    def forward(self, x):
-        enc_input, dec_input = x[:, :self.seq_len, :], x[:, self.seq_len:, :]
-        x_enc, x_mark_enc = enc_input[:, :, :self.enc_in], enc_input[:, :, self.enc_in:]
-        x_dec, x_mark_dec = dec_input[:, :, :self.dec_in], dec_input[:, :, self.dec_in:]
-        enc_self_mask, dec_self_mask, dec_enc_mask = None, None, None
 
         enc_out = self.enc_embedding(x_enc, x_mark_enc)
         enc_out, attns = self.encoder(enc_out, attn_mask=enc_self_mask)

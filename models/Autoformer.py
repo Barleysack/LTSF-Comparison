@@ -19,10 +19,6 @@ class Model(nn.Module):
         self.label_len = configs.label_len
         self.pred_len = configs.pred_len
         self.output_attention = configs.output_attention
-        self.enc_in = configs.enc_in
-        self.dec_in = configs.dec_in
-
-        assert(int(self.enc_in) == int(self.dec_in)) # if not, code for input concatenation needs revision.
 
         # Decomp
         kernel_size = configs.moving_avg
@@ -100,15 +96,8 @@ class Model(nn.Module):
             projection=nn.Linear(configs.d_model, configs.c_out, bias=True)
         )
 
-    """
     def forward(self, x_enc, x_mark_enc, x_dec, x_mark_dec,
                 enc_self_mask=None, dec_self_mask=None, dec_enc_mask=None):
-    """
-    def forward(self, x):
-        enc_input, dec_input = x[:, :self.seq_len, :], x[:, self.seq_len:, :]
-        x_enc, x_mark_enc = enc_input[:, :, :self.enc_in], enc_input[:, :, self.enc_in:]
-        x_dec, x_mark_dec = dec_input[:, :, :self.dec_in], dec_input[:, :, self.dec_in:]
-        enc_self_mask, dec_self_mask, dec_enc_mask = None, None, None
         # decomp init
         mean = torch.mean(x_enc, dim=1).unsqueeze(1).repeat(1, self.pred_len, 1)
         zeros = torch.zeros([x_dec.shape[0], self.pred_len, x_dec.shape[2]], device=x_enc.device)

@@ -21,13 +21,6 @@ warnings.filterwarnings('ignore')
 class Exp_Main(Exp_Basic):
     def __init__(self, args):
         super(Exp_Main, self).__init__(args)
-        """
-        # storing variables to concatenate inputs to xFormers.
-        self.seq_len = args.seq_len
-        self.enc_in = args.enc_in
-        self.dec_in = args.dec_in
-        assert(int(self.enc_in) == int(self.dec_in))
-        """
 
     def _build_model(self):
         model_dict = {
@@ -59,14 +52,10 @@ class Exp_Main(Exp_Basic):
     def vali(self, vali_data, vali_loader, criterion):
         total_loss = []
         self.model.eval()
-
-        if (self.args.use_amp or self.args.output_attention):
-            raise NotImplementedError() # TBD
-
         with torch.no_grad():
             for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(vali_loader):
                 batch_x = batch_x.float().to(self.device)
-                batch_y = batch_y.float().to(self.device)
+                batch_y = batch_y.float()
 
                 batch_x_mark = batch_x_mark.float().to(self.device)
                 batch_y_mark = batch_y_mark.float().to(self.device)
@@ -74,18 +63,6 @@ class Exp_Main(Exp_Basic):
                 # decoder input
                 dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
                 dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
-
-                # concatenation of encoder - decoder inputs into one tensor
-                enc_input = torch.cat((batch_x, batch_x_mark), dim=2)
-                dec_input = torch.cat((dec_inp, batch_y_mark), dim=2)
-                input_cat = torch.cat((enc_input, dec_input), dim=1)
-
-                if 'Linear' in self.args.model:
-                    outputs = self.model(batch_x)
-                else:
-                    outputs = self.model(input_cat)
-
-                """
                 # encoder - decoder
                 if self.args.use_amp:
                     with torch.cuda.amp.autocast():
@@ -103,9 +80,7 @@ class Exp_Main(Exp_Basic):
                         if self.args.output_attention:
                             outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
                         else:
-                            #outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-                            outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark, batch_y)
-                """
+                            outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                 f_dim = -1 if self.args.features == 'MS' else 0
                 outputs = outputs[:, -self.args.pred_len:, f_dim:]
                 batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
@@ -140,9 +115,6 @@ class Exp_Main(Exp_Basic):
         if self.args.use_amp:
             scaler = torch.cuda.amp.GradScaler()
 
-        if (self.args.use_amp or self.args.output_attention):
-            raise NotImplementedError() # TBD
-
         for epoch in range(self.args.train_epochs):
             iter_count = 0
             train_loss = []
@@ -162,21 +134,37 @@ class Exp_Main(Exp_Basic):
                 dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
                 dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
 
-                # concatenation of encoder - decoder inputs into one tensor
-                enc_input = torch.cat((batch_x, batch_x_mark), dim=2)
-                dec_input = torch.cat((dec_inp, batch_y_mark), dim=2)
-                input_cat = torch.cat((enc_input, dec_input), dim=1)
+                # encoder - decoder
+                if self.args.use_amp:
+                    with torch.cuda.amp.autocast():
+                        if 'Linear' in self.args.model:
+                            outputs = self.model(batch_x)
+                        else:
+                            if self.args.output_attention:
+                                outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
+                            else:
+                                outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
 
-                if 'Linear' in self.args.model:
-                    outputs = self.model(batch_x)
+                        f_dim = -1 if self.args.features == 'MS' else 0
+                        outputs = outputs[:, -self.args.pred_len:, f_dim:]
+                        batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
+                        loss = criterion(outputs, batch_y)
+                        train_loss.append(loss.item())
                 else:
-                    outputs = self.model(input_cat)
-                    
-                f_dim = -1 if self.args.features == 'MS' else 0
-                outputs = outputs[:, -self.args.pred_len:, f_dim:]
-                batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
-                loss = criterion(outputs, batch_y)
-                train_loss.append(loss.item())
+                    if 'Linear' in self.args.model:
+                            outputs = self.model(batch_x)
+                    else:
+                        if self.args.output_attention:
+                            outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
+                            
+                        else:
+                            outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark, batch_y)
+                    # print(outputs.shape,batch_y.shape)
+                    f_dim = -1 if self.args.features == 'MS' else 0
+                    outputs = outputs[:, -self.args.pred_len:, f_dim:]
+                    batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
+                    loss = criterion(outputs, batch_y)
+                    train_loss.append(loss.item())
 
                 if (i + 1) % 100 == 0:
                     print("\titers: {0}, epoch: {1} | loss: {2:.7f}".format(i + 1, epoch + 1, loss.item()))
@@ -227,9 +215,6 @@ class Exp_Main(Exp_Basic):
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
-        if (self.args.use_amp or self.args.output_attention):
-            raise NotImplementedError() # TBD
-
         self.model.eval()
         with torch.no_grad():
             for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(test_loader):
@@ -242,18 +227,6 @@ class Exp_Main(Exp_Basic):
                 # decoder input
                 dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
                 dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
-
-                # concatenation of encoder - decoder inputs into one tensor
-                enc_input = torch.cat((batch_x, batch_x_mark), dim=2)
-                dec_input = torch.cat((dec_inp, batch_y_mark), dim=2)
-                input_cat = torch.cat((enc_input, dec_input), dim=1)
-
-                if 'Linear' in self.args.model:
-                    outputs = self.model(batch_x)
-                else:
-                    outputs= self.model(input_cat)
-
-                """
                 # encoder - decoder
                 if self.args.use_amp:
                     with torch.cuda.amp.autocast():
@@ -273,7 +246,6 @@ class Exp_Main(Exp_Basic):
 
                         else:
                             outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-                """
 
                 f_dim = -1 if self.args.features == 'MS' else 0
                 # print(outputs.shape,batch_y.shape)
@@ -294,6 +266,9 @@ class Exp_Main(Exp_Basic):
                     pd = np.concatenate((input[0, :, -1], pred[0, :, -1]), axis=0)
                     visual(gt, pd, os.path.join(folder_path, str(i) + '.pdf'))
 
+        if self.args.test_flop:
+            test_params_flop((batch_x.shape[1],batch_x.shape[2]))
+            exit()
         preds = np.array(preds)
         trues = np.array(trues)
         inputx = np.array(inputx)
@@ -309,13 +284,6 @@ class Exp_Main(Exp_Basic):
 
         mae, mse, rmse, mape, mspe, rse, corr = metric(preds, trues)
         print('mse:{}, mae:{}'.format(mse, mae))
-
-        if self.args.test_flop:
-            if ('Linear' in self.args.model):
-                test_params_flop(self.model, (batch_x.shape[1],batch_x.shape[2]), self.device)
-            else:
-                test_params_flop(self.model, (input_cat.shape[1],input_cat.shape[2]), self.device)
-        
         f = open("result.txt", 'a')
         f.write(setting + "  \n")
         f.write('mse:{}, mae:{}, rse:{}, corr:{}'.format(mse, mae, rse, corr))
@@ -339,9 +307,6 @@ class Exp_Main(Exp_Basic):
 
         preds = []
 
-        if (self.args.use_amp or self.args.output_attention):
-            raise NotImplementedError() # TBD
-
         self.model.eval()
         with torch.no_grad():
             for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(pred_loader):
@@ -353,18 +318,6 @@ class Exp_Main(Exp_Basic):
                 # decoder input
                 dec_inp = torch.zeros([batch_y.shape[0], self.args.pred_len, batch_y.shape[2]]).float().to(batch_y.device)
                 dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
-
-                # concatenation of encoder - decoder inputs into one tensor
-                enc_input = torch.cat((batch_x, batch_x_mark), dim=2)
-                dec_input = torch.cat((dec_inp, batch_y_mark), dim=2)
-                input_cat = torch.cat((enc_input, dec_input), dim=1)
-
-                if 'Linear' in self.args.model:
-                    outputs = self.model(batch_x)
-                else:
-                    outputs= self.model(input_cat)
-
-                """
                 # encoder - decoder
                 if self.args.use_amp:
                     with torch.cuda.amp.autocast():
@@ -382,10 +335,7 @@ class Exp_Main(Exp_Basic):
                         if self.args.output_attention:
                             outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
                         else:
-                            #outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-                            outputs = self.model(input_cat)
-                """
-
+                            outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                 pred = outputs.detach().cpu().numpy()  # .squeeze()
                 preds.append(pred)
 

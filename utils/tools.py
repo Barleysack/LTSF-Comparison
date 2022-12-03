@@ -92,7 +92,7 @@ def visual(true, preds=None, name='./pic/test.pdf'):
     plt.legend()
     plt.savefig(name, bbox_inches='tight')
 
-def test_params_flop(model, x_shape, device):
+def test_params_flop(model,x_shape):
     """
     If you want to thest former's flop, you need to give default value to inputs in model.forward(), the following code can only pass one argument to forward()
     """
@@ -101,11 +101,8 @@ def test_params_flop(model, x_shape, device):
         model_params += parameter.numel()
         print('INFO: Trainable parameter count: {:.2f}M'.format(model_params / 1000000.0))
     from ptflops import get_model_complexity_info    
-    #with torch.cuda.device(0):
-    device_num = int(str(device)[-1])
-    with torch.cuda.device(device_num):
-        #macs, params = get_model_complexity_info(model.cuda(), x_shape, as_strings=True, print_per_layer_stat=True)
-        macs, params = get_model_complexity_info(model.to(device), x_shape, as_strings=True, print_per_layer_stat=True)
+    with torch.cuda.device(0):
+        macs, params = get_model_complexity_info(model.cuda(), x_shape, as_strings=True, print_per_layer_stat=True)
         # print('Flops:' + flops)
         # print('Params:' + params)
         print('{:<30}  {:<8}'.format('Computational complexity: ', macs))
